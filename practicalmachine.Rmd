@@ -1,0 +1,88 @@
+---
+title: "Practical Machine Learning"
+author: "Ng Shi Ping"
+date: "December 1, 2016"
+output: word_document
+---
+
+Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+```{r}
+setwd("C:/Users/User/Desktop/machine")
+```
+Set up the environment using the following chunk.
+```{r}
+library(caret)
+library(kernlab)
+library(ggplot2)
+testing <- read.csv(file="pml-testing.csv")
+training <- read.csv(file="pml-training.csv")
+```
+Observations from the training data showns 19622 of 160 variables.
+```{r}
+dim(training)
+```
+```{r}
+table(training$classe)
+```
+The training set and a validation set being partitioned so that validation can be performed.
+```{r}
+set.seed(123456)
+setoftraining <- createDataPartition(training$classe, p = 0.8, list = FALSE)
+TrainingSet <- training[setoftraining, ]
+ValidationSet <- training[-setoftraining, ]
+```
+Missing values, descritptive fields and zero variance being cleaned up.
+```{r}
+# exclude near zero variance features
+nzvcol <- nearZeroVar(TrainingSet)
+TrainingSet <- TrainingSet[, -nzvcol]
+
+# exclude columns with m40% or more missing values exclude descriptive
+# columns like name etc
+cntlength <- sapply(TrainingSet, function(x) {
+    sum(!(is.na(x) | x == ""))
+})
+nullcol <- names(cntlength[cntlength < 0.6 * length(TrainingSet$classe)])
+descriptcol <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", 
+    "cvtd_timestamp", "new_window", "num_window")
+excludecols <- c(descriptcol, nullcol)
+TrainingSet <- TrainingSet[, !names(TrainingSet) %in% excludecols]
+```
+Train the Model by using randomForest package.
+```{r}
+library(randomForest)
+rfModel <- randomForest(classe ~ ., data = TrainingSet, importance = TRUE, ntrees = 10)
+```
+Testing our model performance on the training set accuracy.
+```{r}
+mtraining <- predict(rfModel, TrainingSet)
+confusionMatrix(mtraining, TrainingSet$classe)
+```
+Testing our model performance on cross validation set.
+```{r}
+mvalidation <- predict(rfModel, ValidationSet)
+confusionMatrix(mvalidation, ValidationSet$classe)
+```
+Testing the test set prediction.
+```{r}
+ptest <- predict(rfModel, testing)
+ptest
+```
+Submission of files is as below.
+```{r}
+answers <- as.vector(ptest)
+
+submission_files = function(x) {
+    n = length(x)
+    for (i in 1:n) {
+        filename = paste0("problem_id_", i, ".txt")
+        write.table(x[i], file = filename, quote = FALSE, row.names = FALSE, 
+            col.names = FALSE)
+    }
+}
+
+submission_files(answers)
+```
